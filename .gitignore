@@ -1,0 +1,9 @@
+log.txt
+config.txt
+/backup/
+/bbs/
+/carts/demos
+/carts/*.p8.png
+/cdata/
+/cstore/
+*.blend1
