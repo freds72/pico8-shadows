@@ -318,7 +318,7 @@ function make_cam(x0,y0,focal)
 		project2d=function(self,v)
 			-- view to screen
  			local w=focal/v[3]
- 			return x0+v[1]*w,y0-v[2]*w
+ 			return x0+ceil(v[1]*w),y0-ceil(v[2]*w)
 		end,
 		-- draw the given vertices using function fn
 		-- performs cam space clipping
@@ -617,7 +617,7 @@ function _init()
 
 	unpack_models()
 
-	cam=make_cam(64,64,64)
+	cam=make_cam(63.5,63.5,63.5)
 
 	make_actor(all_actors.ground,{0,0,0})
 	make_actor(all_actors.shader,{0,0,0})
