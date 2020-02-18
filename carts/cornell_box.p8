@@ -1,5 +1,5 @@
 pico-8 cartridge // http://www.pico-8.com
-version 16
+version 18
 __lua__
 -- cornell box
 -- by freds72
@@ -103,7 +103,7 @@ end
 function v_normz(v)
 	local d=v_dot(v,v)
 	if d>0.001 then
-		d=sqrt(d)
+		d=d^0.5
 		v[1]/=d
 		v[2]/=d
 		v[3]/=d
@@ -186,7 +186,7 @@ end
 function q_normz(q)
 	local d=v_dot(q,q)+q[4]*q[4]
 	if d>0 then
-		d=sqrt(d)
+		d=d^0.5
 		q[1]/=d
 		q[2]/=d
 		q[3]/=d
@@ -238,7 +238,10 @@ end
 local all_actors={	
 	cube={
 		model="cube",
-		update=nop
+		update=function(self)
+			self.pos[1]=2.5*cos(time_t/240)
+			return true
+		end
 	},
 	ground={
 		model="cornell",
@@ -318,7 +321,7 @@ function make_cam(x0,y0,focal)
 		project2d=function(self,v)
 			-- view to screen
  			local w=focal/v[3]
- 			return x0+ceil(v[1]*w),y0-ceil(v[2]*w)
+ 			return x0+v[1]*w,y0-v[2]*w
 		end,
 		-- draw the given vertices using function fn
 		-- performs cam space clipping
@@ -444,7 +447,7 @@ function zbuf_draw()
 				v[i]=m_x_v(cam.m,make_v(cam.pos,v[i]))
 			end
 		end
-		add(objs,f)
+		objs[#objs+1]=f
 	end
 	
 	-- z-sorting
@@ -467,7 +470,7 @@ function zbuf_filter(array)
 		if not a:update() then
 			del(array,a)
 		elseif a.model then
-			add(drawables,a)
+			drawables[#drawables+1]=a
 		end
 	end
 end
@@ -492,14 +495,14 @@ function plane_poly_clip(n,p,v)
 				local r=make_v(v0,v1)
 				v_scale(r,d0/(d0-d1))
 				v_add(r,v0)
-				add(res,r)
+				res[#res+1]=r
 			end
-			add(res,v1)
+			res[#res+1]=v1
 		elseif d0>0 then
 			local r=make_v(v0,v1)
 			v_scale(r,d0/(d0-d1))
 			v_add(r,v0)
-			add(res,r)
+			res[#res+1]=r
 		end
 		v0,d0=v1,d1
 	end
@@ -540,11 +543,11 @@ function collect_faces(model,pos,m,out,out_casters)
 					v_add(v,pos)
 					v_cache[vi]=v
 				end
-				add(vertices,v)
+				vertices[#vertices+1]=v
 			end
 		end
 		if cam_facing then
-			add(out,{v=vertices,c=f.c,id=face_id,light=light_facing,shadows={}})
+			out[#out+1]={v=vertices,c=f.c,id=face_id,light=light_facing,shadows={}}
 		end
 		-- shadow caster
 		if is_caster and f.cast_shadows then
@@ -695,69 +698,40 @@ function unpack_models()
 end
 
 -->8
--- trifill
--- by @p01
-function p01_trapeze_h(l,r,lt,rt,y0,y1)
- lt,rt=(lt-l)/(y1-y0),(rt-r)/(y1-y0)
- if(y0<0)l,r,y0=l-y0*lt,r-y0*rt,0 
-	for y0=y0,min(y1,128) do
-  rectfill(l,y0,r,y0)
-  l+=lt
-  r+=rt
- end
-end
-function p01_trapeze_w(t,b,tt,bt,x0,x1)
- tt,bt=(tt-t)/(x1-x0),(bt-b)/(x1-x0)
- if(x0<0)t,b,x0=t-x0*tt,b-x0*bt,0 
- for x0=x0,min(x1,128) do
-  rectfill(x0,t,x0,b)
-  t+=tt
-  b+=bt
- end
-end
 
-function trifill(x0,y0,x1,y1,x2,y2,col)
- color(col)
- if(y1<y0)x0,x1,y0,y1=x1,x0,y1,y0
- if(y2<y0)x0,x2,y0,y2=x2,x0,y2,y0
- if(y2<y1)x1,x2,y1,y2=x2,x1,y2,y1
- if max(x2,max(x1,x0))-min(x2,min(x1,x0)) > y2-y0 then
-  col=x0+(x2-x0)/(y2-y0)*(y1-y0)
-  p01_trapeze_h(x0,x0,x1,col,y0,y1)
-  p01_trapeze_h(x1,col,x2,x2,y1,y2)
- else
-  if(x1<x0)x0,x1,y0,y1=x1,x0,y1,y0
-  if(x2<x0)x0,x2,y0,y2=x2,x0,y2,y0
-  if(x2<x1)x1,x2,y1,y2=x2,x1,y2,y1
-  col=y0+(y2-y0)/(x2-x0)*(x1-x0)
-  p01_trapeze_w(y0,y0,y1,col,x0,x1)
-  p01_trapeze_w(y1,col,y2,y2,x1,x2)
- end
-end
+-- edge rasterizer
+function polyfill(p,col)
+ if(#p<2) return
+	color(col)
+	local p0,nodes=p[#p],{}
+	-- band vs. flr: -0.20%
+	local x0,y0=cam:project2d(p0)
 
-function polyfill(p,c)
-	if #p>2 then
-		local x0,y0=cam:project2d(p[1])
-		local x1,y1=cam:project2d(p[2])
-		for i=3,#p do
-			local x2,y2=cam:project2d(p[i])
-			trifill(x0,y0,x1,y1,x2,y2,c)
-			x1,y1=x2,y2
+	for i=1,#p do
+		local p1=p[i]
+		local x1,y1=cam:project2d(p1)
+		-- backup before any swap
+		local _x1,_y1=x1,y1
+		if(y0>y1) x0,y0,x1,y1=x1,y1,x0,y0
+		-- exact slope
+		local dx=(x1-x0)/(y1-y0)
+		if(y0<0) x0-=y0*dx y0=0
+		-- subpixel shifting (after clipping)
+		local cy0=ceil(y0)
+		x0+=(cy0-y0)*dx
+		for y=cy0,min(ceil(y1)-1,127) do
+			local x=nodes[y]
+			if x then
+				rectfill(x,y,x0,y)
+			else
+				nodes[y]=x0
+			end
+			x0+=dx
 		end
+		-- next vertex
+		x0,y0=_x1,_y1
 	end
 end
-function poly(p,c)
-	if #p>1 then
-		color(c)
-		local x0,y0=cam:project2d(p[#p])
-		for i=1,#p do
-			local x1,y1=cam:project2d(p[i])
-			line(x0,y0,x1,y1)
-			x0,y0=x1,y1
-		end
-	end
-end
-
 -->8
 -- #putaflipinit
 function cflip() if(slowflip)flip()
