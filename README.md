@@ -67,7 +67,7 @@ __gfx__
 
 Edit (cornel_box)[carts/cornell_box.p8]
 
-Copy the part below ````__gfx__```` at memory offset 0x1000 (e.g. starts at 0/128 in spritesheet)
+Copy the part below ````__gfx__```` at memory offset 0x1000 (e.g. starts at 0/64 in spritesheet)
 
 ### Use model
 
